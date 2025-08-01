@@ -184,7 +184,7 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
         break;
         
     case ALSA_CONTROL_RESTART:
-        if(alsa_ctl->current_status == ALSA_STATUS_PLAYING)
+        if(alsa_ctl->current_status != ALSA_STATUS_IDLE)
         {
             if(alsa_ctl_stop_all(alsa_ctl) < 0)
             {
@@ -209,7 +209,7 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
         break;
 
     case ALSA_CONTROL_CHANGE_MUSIC:
-        if(alsa_ctl->current_status == ALSA_STATUS_PLAYING)
+        if(alsa_ctl->current_status != ALSA_STATUS_IDLE)
         {
             if(alsa_ctl_stop_all(alsa_ctl) < 0)
             {
