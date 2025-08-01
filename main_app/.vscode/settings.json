@@ -1,0 +1,24 @@
+{
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/sources/poky/bitbake/lib",
+        "${workspaceFolder}/sources/poky/meta/lib"
+    ],
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/sources/poky/bitbake/lib",
+        "${workspaceFolder}/sources/poky/meta/lib"
+    ],
+    "files.associations": {
+        "*.conf": "bitbake",
+        "*.inc": "bitbake",
+        "alsa_clt.h": "c",
+        "asoundlib.h": "c",
+        "errno.h": "c",
+        "unistd.h": "c",
+        "semaphore.h": "c",
+        "array": "c",
+        "string_view": "c",
+        "format": "c",
+        "initializer_list": "c",
+        "span": "c"
+    }
+}

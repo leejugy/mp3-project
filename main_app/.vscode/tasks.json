@@ -1,0 +1,23 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "프로젝트 컴파일",
+			"command": "cd /home/leejunggyun/source/make_mp3/main_app;bash compile.sh",
+			"args": [
+			],
+			"options": {
+				"cwd": "${fileDirname}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "프로젝트 컴파일"
+		}
+	]
+}

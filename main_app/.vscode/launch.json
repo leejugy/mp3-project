@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "원격 GDB 디버그 (Remote GDB Debug)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/home/leejunggyun/source/make_mp3/main_app/mp3",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/opt/frdm-imx93/sysroots/x86_64-pokysdk-linux/usr/bin/aarch64-poky-linux/aarch64-poky-linux-gdb",
+            "miDebuggerServerAddress": "2.3.4.6:1234",
+            "setupCommands": [
+                {
+                    "description": "GDB에 대한 자동 서식 지정 사용",
+                    "text": "enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Yocto SDK의 sysroot 설정",
+                    "text": "set sysroot /opt/frdm-imx93/sysroots/x86_64-pokysdk-linux/",
+                    "ignoreFailures": false
+                }
+            ]
+        }
+    ]
+}
