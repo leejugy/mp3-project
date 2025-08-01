@@ -184,28 +184,28 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
         break;
         
     case ALSA_CONTROL_RESTART:
-        if(alsa_ctl->current_status != ALSA_STATUS_IDLE)
+        if(alsa_ctl->current_status == ALSA_STATUS_PLAYING)
         {
             if(alsa_ctl_stop_all(alsa_ctl) < 0)
             {
                 printr("alsa control stop fail");
                 return -1;
             }
-
-            if(alsa_get_audio_info(alsa_ctl->current_audio_path, &alsa_ctl->audio_info) < 0)
-            {
-                printr("alsa get audio info fail");
-                return -1;
-            }
-
-            if(alsa_set_hw_params(alsa_ctl) < 0)
-            {
-                printr("alsa set hw params");
-                return -1;
-            }
-            alsa_ctl->current_status = ALSA_STATUS_PLAYING;
-            alsa_ctl->end_count = 0;
         }
+
+        if(alsa_get_audio_info(alsa_ctl->current_audio_path, &alsa_ctl->audio_info) < 0)
+        {
+            printr("alsa get audio info fail");
+            return -1;
+        }
+
+        if(alsa_set_hw_params(alsa_ctl) < 0)
+        {
+            printr("alsa set hw params");
+            return -1;
+        }
+        alsa_ctl->current_status = ALSA_STATUS_PLAYING;
+        alsa_ctl->end_count = 0;
         break;
 
     case ALSA_CONTROL_CHANGE_MUSIC:
