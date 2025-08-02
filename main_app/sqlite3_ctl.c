@@ -76,7 +76,7 @@ static int sql_command(sql_ctl_t *sql_ctl)
         break;
     }
     
-    printb("command : %s", sql_command_string);
+    //printb("command : %s", sql_command_string);
     if(sqlite3_exec(sql_ctl->handle, sql_command_string, &sql_call_back, &sql_ctl->callback, &errmsg) < 0)
     {
         printr("fail to exec : %s", errmsg);
