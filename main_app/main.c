@@ -1,16 +1,26 @@
 #include "define.h"
-#include "alsa_clt.h"
+#include "alsa_ctl.h"
+#include "que_ctl.h"
+#include "gpio_ctl.h"
+#include "codec_ctl.h"
+#include "sqlite3_ctl.h"
+
+void main_init()
+{
+    gpio_init_all();
+    que_init_all();
+    sql_init_all();
+}
+
+void main_thread_init()
+{
+    start_thread_codec();
+}
 
 int main()
 {
-    alsa_ctl_t alsa_clt = {0, };
-    alsa_set_t alsa_set = {0, };
-    alsa_set.control = ALSA_CONTROL_CHANGE_MUSIC;
-    sprintf(alsa_set.play_audio_path, "/root/sarenian.wav");
-    alsa_init(&alsa_clt);
-    alsa_control_set(&alsa_clt, &alsa_set);
-    while(1)
-    {
-        alsa_control(&alsa_clt);
-    }
+    main_init();
+    main_thread_init();
+
+    while(1);
 }

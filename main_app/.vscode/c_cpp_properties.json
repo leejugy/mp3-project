@@ -8,7 +8,9 @@
             "defines": [],
             "compilerPath": "/opt/frdm-imx93/sysroots/x86_64-pokysdk-linux/usr/bin/aarch64-poky-linux/aarch64-poky-linux-gcc",
             "intelliSenseMode": "linux-gcc-x64",
-            "compilerArgs": ["--sysroot=/opt/frdm-imx93/sysroots/armv8a-poky-linux"]
+            "compilerArgs": [
+                "--sysroot=/opt/frdm-imx93/sysroots/armv8a-poky-linux"
+            ]
         }
     ],
     "version": 4

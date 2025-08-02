@@ -1,13 +1,18 @@
-#include "alsa_clt.h"
+#include "alsa_ctl.h"
+#include "gpio_ctl.h"
+#include "sqlite3_ctl.h"
 
 int alsa_init(alsa_ctl_t *alsa_ctl)
 {   
     int ret = 0;
+
     if((ret = snd_pcm_open(&alsa_ctl->handle, ALSA_SOUND_CARD_NAME, SND_PCM_STREAM_PLAYBACK, 0)) < 0)
     {
         printr("fail to open pcm : %s", snd_strerror(ret));
         return -1;
     }
+
+    alsa_ctl->volume = sql_get_volume();
     return 1;
 }
 
@@ -151,11 +156,13 @@ static int alsa_ctl_stop_all(alsa_ctl_t *alsa_ctl)
     if((ret = snd_pcm_drop(alsa_ctl->handle)) < 0)
     {
         printr("fail to drop : %s", snd_strerror(ret));
+        close(alsa_ctl->audio_info.fd);
         return -1;
     }
     if((ret = snd_pcm_hw_free(alsa_ctl->handle)) < 0)
     {
         printr("fail to free hw : %s", snd_strerror(ret));
+        close(alsa_ctl->audio_info.fd);
         return -1;
     }
     close(alsa_ctl->audio_info.fd);
@@ -165,6 +172,7 @@ static int alsa_ctl_stop_all(alsa_ctl_t *alsa_ctl)
     
 int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
 {
+    int val = 0;
     switch (alsa_set->control)
     {
     case ALSA_CONTROL_NOTHING:
@@ -180,7 +188,10 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
             }
             alsa_ctl->current_status = ALSA_STATUS_IDLE;
             alsa_ctl->end_count = 0;
+            alsa_ctl->read_size = 0;
         }
+        val = GPIO_LOW;
+        gpio_write_index(GPIO_CODEC_SW_MUTE, &val);
         break;
         
     case ALSA_CONTROL_RESTART:
@@ -204,8 +215,11 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
             printr("alsa set hw params");
             return -1;
         }
+        val = GPIO_HIGH;
+        gpio_write_index(GPIO_CODEC_SW_MUTE, &val);
         alsa_ctl->current_status = ALSA_STATUS_PLAYING;
         alsa_ctl->end_count = 0;
+        alsa_ctl->read_size = 0;
         break;
 
     case ALSA_CONTROL_CHANGE_MUSIC:
@@ -230,34 +244,132 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
             printr("alsa set hw params");
             return -1;
         }
+        val = GPIO_HIGH;
+        gpio_write_index(GPIO_CODEC_SW_MUTE, &val);
         alsa_ctl->current_status = ALSA_STATUS_PLAYING;
         alsa_ctl->end_count = 0;
+        alsa_ctl->read_size = 0;
         break;
 
         
     case ALSA_CONTROL_PAUSE:
         if(alsa_ctl->current_status == ALSA_STATUS_PLAYING)
         {
+            val = GPIO_LOW;
+            gpio_write_index(GPIO_CODEC_SW_MUTE, &val);
             alsa_ctl->current_status = ALSA_STATUS_PAUSE;
         }
         break;
+    
+    case ALSA_CONTROL_RESUME:
+        if(alsa_ctl->current_status == ALSA_STATUS_PAUSE)
+        {
+            val = GPIO_HIGH;
+            gpio_write_index(GPIO_CODEC_SW_MUTE, &val);
+            alsa_ctl->current_status = ALSA_STATUS_PLAYING;
+        }
+        break;
+
+    case ALSA_CONTROL_VOLUME_CONTROL:
+        alsa_ctl->volume = alsa_set->volume;
+        sql_set_volume(alsa_ctl->volume);
+        break;
 
     default:
+        val = GPIO_LOW;
+        gpio_write_index(GPIO_CODEC_SW_MUTE, &val);
         printr("unkwon control set : %d", alsa_set->control);
         return -1;
     }
 
     memset(alsa_set->play_audio_path, 0, sizeof(alsa_set->play_audio_path));
+    alsa_set->volume = 0;
     alsa_set->control = ALSA_CONTROL_NOTHING;
     return 1;
 }
 
-#define ALSA_GET_WRITEI_SIZE(size) ALSA_WRITEI_BUF_MAX_SIZE/size
+
+
+static void alsa_volume_control(alsa_ctl_t *alsa_ctl, void *buf, int buf_size)
+{
+    int i = 0;
+    int j = 0;
+    switch (alsa_ctl->audio_info.format)
+    {
+    case SND_PCM_FORMAT_U8:
+    {
+        uint8_t *u8_data = buf;
+        for(i = 0; i < buf_size; i += sizeof(uint8_t))
+        {
+            u8_data[j] = u8_data[j] * ((float)alsa_ctl->volume / 100.0);
+            j++;
+        }
+        break;
+    }
+
+    case SND_PCM_FORMAT_S16_LE:
+    {
+        int16_t *s16_data = buf;
+        for(i = 0; i < buf_size; i += sizeof(int16_t))
+        {
+            s16_data[j] = s16_data[j] * ((float)alsa_ctl->volume / 100.0);
+            j++;
+        }
+        break;
+    }
+
+    case SND_PCM_FORMAT_S24_LE:
+    {
+        uint8_t s24_buf[3] = {0, };
+        int32_t s24_data = 0;
+        for(i = 0; i < buf_size; i += sizeof(s24_buf))
+        {
+            s24_data = 0;
+            memcpy(s24_buf, buf + i, sizeof(s24_buf));
+            /* signed extension */
+            s24_data |= s24_buf[2] << 24;
+            s24_data |= s24_buf[1] << 16;
+            s24_data |= s24_buf[0] << 8;
+            s24_data = s24_data >> 8;
+
+            s24_data = s24_data * ((float)alsa_ctl->volume / 100.0);
+
+            s24_buf[0] = (s24_data >> 16) & 0xff;
+            s24_buf[1] = (s24_data >> 8) & 0xff;
+            s24_buf[2] = (s24_data) & 0xff;
+            memcpy(buf + i, s24_buf, sizeof(s24_buf));
+        }
+        break;
+    }
+
+    case SND_PCM_FORMAT_S32_LE:
+    {
+        int32_t *s32_data = buf;
+        for(i = 0; i < buf_size; i += sizeof(int32_t))
+        {
+            s32_data[j] = s32_data[j] * ((float)alsa_ctl->volume / 100.0);
+            j++;
+        }
+        break;
+    }
+
+    default:
+    {
+        int16_t *s16_data = buf;
+        for(i = 0; i < buf_size; i += sizeof(int16_t))
+        {
+            s16_data[j] = s16_data[j] * ((float)alsa_ctl->volume / 100.0);
+            j++;
+        }
+        break;
+    }
+    }
+}
+
 static int alsa_write_frame(alsa_ctl_t *alsa_ctl)
 {
     int ret = 0;
     uint8_t writei_buf[ALSA_WRITEI_BUF_MAX_SIZE] = {0, };
-    static uint32_t read_size = 0;
 
     if(alsa_ctl->current_status != ALSA_STATUS_PLAYING)
     {
@@ -265,13 +377,14 @@ static int alsa_write_frame(alsa_ctl_t *alsa_ctl)
         return -1;
     }
 
-    if(read(alsa_ctl->audio_info.fd, writei_buf, sizeof(writei_buf)) < 0)
+    if((ret = read(alsa_ctl->audio_info.fd, writei_buf, sizeof(writei_buf))) < 0)
     {
-        printr("fail to read : %s", snd_strerror(ret));
+        printr("fail to read : %s", strerror(errno));
         return -1;
     }
 
-    read_size += sizeof(writei_buf);
+    alsa_ctl->read_size += sizeof(writei_buf);
+    alsa_volume_control(alsa_ctl, writei_buf, ret);
 
     if((ret = snd_pcm_writei(alsa_ctl->handle, writei_buf, ALSA_GET_WRITEI_SIZE(alsa_ctl->audio_info.frame_size))) < 0)
     {
@@ -289,8 +402,9 @@ static int alsa_write_frame(alsa_ctl_t *alsa_ctl)
         return -1;
     }
 
-    if(read_size > alsa_ctl->audio_info.data_size)
+    if(alsa_ctl->read_size > alsa_ctl->audio_info.data_size)
     {
+        alsa_ctl->read_size = 0;
         return 1;
     }
     return 0;
@@ -322,7 +436,8 @@ int alsa_control(alsa_ctl_t *alsa_ctl)
         break;
 
     case ALSA_STATUS_END:
-        if(alsa_ctl->end_count++ >= 50)
+        /* wait 500ms to finish codec playing */
+        if(alsa_ctl->end_count++ >= 500)
         {
             if(alsa_ctl_stop_all(alsa_ctl) < 0)
             {

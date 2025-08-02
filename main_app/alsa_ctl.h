@@ -6,7 +6,8 @@
 
 #define ALSA_SOUND_CARD_NAME "hw:wm8960soundcard"
 #define ALSA_WRITEI_BUF_MAX_SIZE 4096
-#define AUDIO_PATH_MAX_LEN 1024
+#define ALSA_VOLUME_INIT_VAL 50
+#define ALSA_GET_WRITEI_SIZE(size) ALSA_WRITEI_BUF_MAX_SIZE/size
 
 typedef enum
 {
@@ -23,6 +24,8 @@ typedef enum
     ALSA_CONTROL_RESTART,
     ALSA_CONTROL_CHANGE_MUSIC, 
     ALSA_CONTROL_PAUSE,
+    ALSA_CONTROL_RESUME,
+    ALSA_CONTROL_VOLUME_CONTROL,
 }ALSA_CONTROL;
 
 typedef struct
@@ -42,13 +45,16 @@ typedef struct
     audio_info_t audio_info;
     ALSA_STATUS current_status;
     int end_count;
-    char current_audio_path[AUDIO_PATH_MAX_LEN];
+    char current_audio_path[PATH_MAX_LEN];
+    uint32_t read_size;
+    uint8_t volume;
 }alsa_ctl_t;
 
 typedef struct 
 {
     ALSA_CONTROL control;
-    char play_audio_path[AUDIO_PATH_MAX_LEN];
+    char play_audio_path[PATH_MAX_LEN];
+    uint8_t volume;
 }alsa_set_t;
 
 
