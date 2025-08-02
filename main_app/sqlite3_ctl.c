@@ -29,11 +29,11 @@ static int sql_call_back(void *argument, int argc, char **argv, char **column)
     switch (callback_argument->table_index)
     {
     case SQL_TABLE_SETTINGS:
-        if(strcmp(column[SQL_SETTINGS_COLUMN_NAME], SQL_COLUMN_NAME) == 0)
+        if(strcmp(column[SQL_SETTINGS_COLUMN_NAME], sql->callback.args.set.condition_column) == 0)
         {
-            if(strcmp(argv[SQL_SETTINGS_COLUMN_NAME], SQL_SETTINGS_VOLUME_NAME) == 0)
+            if(strcmp(argv[SQL_SETTINGS_COLUMN_NAME], sql->callback.args.set.condition) == 0)
             {
-                strcpy(callback_argument->args.set.volume, argv[SQL_SETTINGS_COLUMN_VALUE]);
+                strcpy(callback_argument->args.set.settings, argv[SQL_SETTINGS_COLUMN_VALUE]);
             }
         }
         break;
@@ -61,7 +61,8 @@ static int sql_command(sql_ctl_t *sql_ctl)
         sprintf(sql_command_string, "SELECT * FROM `%s` WHERE %s;", sql_ctl->table, sql_ctl->args.search_args);
         if(sql_ctl->table_index == SQL_TABLE_SETTINGS)
         {
-            strcpy(sql_ctl->callback.args.set.setup_name, sql_ctl->args.update_args.condition_column);
+            strcpy(sql_ctl->callback.args.set.condition, sql_ctl->args.search_args.condition);
+            strcpy(sql_ctl->callback.args.set.condition_column, sql_ctl->args.search_args.condition_column);
         }
         sql_ctl->callback.table_index = sql_ctl->table_index;
         break;
@@ -86,38 +87,40 @@ static int sql_command(sql_ctl_t *sql_ctl)
     return 1;
 }
 
-int sql_get_volume()
+int sql_get_settings_integer(char *settings_name)
 {
     int ret = 0;
 
     sem_wait(&sql[SQL_TABLE_SETTINGS].sem);
     sql[SQL_TABLE_SETTINGS].cmd = SQL_SEARCH;
-    sprintf(sql[SQL_TABLE_SETTINGS].args.search_args, "`%s` = '%s'", SQL_COLUMN_NAME, SQL_SETTINGS_VOLUME_NAME);
+    sprintf(sql[SQL_TABLE_SETTINGS].args.search_args.args, "`%s` = '%s'", SQL_COLUMN_NAME, settings_name);
+    strcpy(sql[SQL_TABLE_SETTINGS].args.search_args.condition_column, SQL_COLUMN_NAME);
+    strcpy(sql[SQL_TABLE_SETTINGS].args.search_args.condition, settings_name);
     ret = sql_command(&sql[SQL_TABLE_SETTINGS]);
     sem_post(&sql[SQL_TABLE_SETTINGS].sem);
 
     if(ret < 0)
     {
-        printr("fail to get volume");
-        ret = ALSA_VOLUME_INIT_VAL;
+        printr("fail to get proper settings : %s", settings_name);
+        ret = 0;
     }
     else
     {
-        ret = atoi(sql[SQL_TABLE_SETTINGS].callback.args.set.volume);
+        ret = atoi(sql[SQL_TABLE_SETTINGS].callback.args.set.settings);
     }
     return ret;
 }
 
-int sql_set_volume(int volume)
+int sql_set_settings_integer(char *settings_name, int integer)
 {
     int ret = 0;
 
     sem_wait(&sql[SQL_TABLE_SETTINGS].sem);
     sql[SQL_TABLE_SETTINGS].cmd = SQL_UPDATE;
     strcpy(sql[SQL_TABLE_SETTINGS].args.update_args.condition_column, SQL_COLUMN_NAME);
-    strcpy(sql[SQL_TABLE_SETTINGS].args.update_args.condition, SQL_SETTINGS_VOLUME_NAME);
+    strcpy(sql[SQL_TABLE_SETTINGS].args.update_args.condition, settings_name);
     strcpy(sql[SQL_TABLE_SETTINGS].args.update_args.revised_column, SQL_COLUMN_VALUE);
-    sprintf(sql[SQL_TABLE_SETTINGS].args.update_args.set_value, "%d", volume);
+    sprintf(sql[SQL_TABLE_SETTINGS].args.update_args.set_value, "%d", integer);
     ret = sql_command(&sql[SQL_TABLE_SETTINGS]);
     sem_post(&sql[SQL_TABLE_SETTINGS].sem);
 

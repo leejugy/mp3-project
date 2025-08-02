@@ -52,18 +52,26 @@ typedef struct
     char set_value[SQL_ARGUMEN_MAX_LEN];
 }sql_update_t;
 
+typedef struct
+{
+    char args[SQL_ARGUMEN_MAX_LEN];
+    char condition_column[SQL_ARGUMEN_MAX_LEN];
+    char condition[SQL_ARGUMEN_MAX_LEN];
+}sql_search_t;
+
 typedef union
 {
     char create_args[SQL_ARGUMEN_MAX_LEN];
     char insert_args[SQL_ARGUMEN_MAX_LEN];
-    char search_args[SQL_ARGUMEN_MAX_LEN];
+    sql_search_t search_args;
     sql_update_t update_args;
 }sql_args;
 
 typedef struct
 {
-    char setup_name[SQL_ARGUMEN_MAX_LEN];
-    char volume[SQL_ARGUMEN_MAX_LEN];
+    char condition_column[SQL_ARGUMEN_MAX_LEN];
+    char condition[SQL_ARGUMEN_MAX_LEN];
+    char settings[SQL_ARGUMEN_MAX_LEN];
 }sql_args_settings_t;
 
 typedef union
@@ -99,6 +107,6 @@ typedef struct
 int sql_init_all();
 int sql_insert(sql_ctl_t *sql_ctl, char *insert_argument);
 int sql_create_table(sql_ctl_t *sql_ctl, char *table_argument);
-int sql_set_volume(int volume);
-int sql_get_volume();
+int sql_set_settings_integer(char *settings_name, int integer);
+int sql_get_settings_integer(char *settings_name);
 #endif

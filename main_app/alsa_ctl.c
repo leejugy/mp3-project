@@ -12,7 +12,7 @@ int alsa_init(alsa_ctl_t *alsa_ctl)
         return -1;
     }
 
-    alsa_ctl->volume = sql_get_volume();
+    alsa_ctl->volume = sql_get_settings_integer(SQL_SETTINGS_VOLUME_NAME);
     return 1;
 }
 
@@ -272,7 +272,7 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
 
     case ALSA_CONTROL_VOLUME_CONTROL:
         alsa_ctl->volume = alsa_set->volume;
-        sql_set_volume(alsa_ctl->volume);
+        sql_set_settings_integer(SQL_SETTINGS_VOLUME_NAME, alsa_ctl->volume);
         break;
 
     default:
