@@ -516,6 +516,7 @@ static int alsa_get_write_frame(alsa_ctl_t *alsa_ctl, uint8_t *buf, size_t buf_s
         }
         else if(ret == MPG123_DONE)
         {
+            alsa_ctl->read_size += done;
             return 0;
         }
         break;
