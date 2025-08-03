@@ -45,7 +45,8 @@
         "list": "c",
         "vector": "c",
         "sqlite3_ctl.h": "c",
-        "sqlite3.h": "c"
+        "sqlite3.h": "c",
+        "mpg123.h": "c"
     },
     "C_Cpp.loggingLevel": "Debug"
 }

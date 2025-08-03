@@ -3,8 +3,11 @@
 
 #include "define.h"
 #include <alsa/asoundlib.h>
+#include <mpg123.h>
 
 #define ALSA_SOUND_CARD_NAME "hw:wm8960soundcard"
+
+#define ALSA_CONVERT_FILE_PATH "/tmp/.temp.wav"
 #define ALSA_WRITEI_BUF_MAX_SIZE 4096
 #define ALSA_VOLUME_INIT_VAL 50
 #define ALSA_GET_WRITEI_SIZE(size) ALSA_WRITEI_BUF_MAX_SIZE/size
@@ -28,12 +31,25 @@ typedef enum
     ALSA_CONTROL_VOLUME_CONTROL,
 }ALSA_CONTROL;
 
+typedef enum
+{
+    ALSA_AUDIO_MP3,
+    ALSA_AUDIO_WAV,
+}ALSA_AUDIO_FILE_TYPE;
+
+typedef struct
+{
+    mpg123_handle *mp3_handle;
+    int wav_fd;
+}audio_handle_u;
+
+
 typedef struct
 {
     snd_pcm_format_t format;
     unsigned int channel;
     unsigned int sample_rate;
-    int fd;
+    audio_handle_u handle;
     uint32_t data_size;
     uint32_t frame_size;
 }audio_info_t;
@@ -44,6 +60,7 @@ typedef struct
     snd_pcm_hw_params_t *hw_params;
     audio_info_t audio_info;
     ALSA_STATUS current_status;
+    ALSA_AUDIO_FILE_TYPE type;
     int end_count;
     char current_audio_path[PATH_MAX_LEN];
     uint32_t read_size;

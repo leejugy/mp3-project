@@ -73,7 +73,7 @@ static int alsa_set_hw_params(alsa_ctl_t *alsa_ctl)
     return 1;
 }
 
-static snd_pcm_format_t alsa_get_audio_format(wav_header_t *wav_header)
+static snd_pcm_format_t alsa_get_wav_audio_format(wav_header_t *wav_header)
 {
     switch (wav_header->bit_per_sample_rate)
     {
@@ -94,40 +94,40 @@ static snd_pcm_format_t alsa_get_audio_format(wav_header_t *wav_header)
     }
 }
 
-#define alsa_get_frame_size(wav_header) (((wav_header_t *) wav_header)->bit_per_sample_rate / 8) * (((wav_header_t *) wav_header)->channel) 
+#define alsa_get_wav_frame_size(wav_header) (((wav_header_t *) wav_header)->bit_per_sample_rate / 8) * (((wav_header_t *) wav_header)->channel) 
 
-static int alsa_get_audio_info(char *audio_path, audio_info_t *audio_info)
+static int alsa_get_audio_wav_info(char *audio_path, audio_info_t *audio_info)
 {
     wav_header_t wav_header = {0, };
     wav_dummy_t wav_dummy = {0,};
     int i = 0;
 
-    if((audio_info->fd = open(audio_path, O_RDONLY)) < 0)
+    if((audio_info->handle.wav_fd = open(audio_path, O_RDONLY)) < 0)
     {
         printr("fail to open [%s] : %s", audio_path, strerror(errno));
         return -1;
     }
 
-    if(read(audio_info->fd, &wav_header, sizeof(wav_header)) < 0)
+    if(read(audio_info->handle.wav_fd, &wav_header, sizeof(wav_header)) < 0)
     {
         printr("fail to read [%s] : %s", audio_path, strerror(errno));
         return -1;
     }
 
     audio_info->channel = wav_header.channel;
-    audio_info->format = alsa_get_audio_format(&wav_header);
+    audio_info->format = alsa_get_wav_audio_format(&wav_header);
     audio_info->sample_rate = wav_header.sample_rate;
-    audio_info->frame_size = alsa_get_frame_size(&wav_header);
+    audio_info->frame_size = alsa_get_wav_frame_size(&wav_header);
 
     for(i = 0; i < 256; i++)
     {
-        if(read(audio_info->fd, wav_dummy.sub_chunkx_id, sizeof(wav_dummy.sub_chunkx_id)) < 0)
+        if(read(audio_info->handle.wav_fd, wav_dummy.sub_chunkx_id, sizeof(wav_dummy.sub_chunkx_id)) < 0)
         {
             printr("fail to read [%s] : %s", audio_path, strerror(errno));
             return -1;
         }
 
-        if(read(audio_info->fd, &wav_dummy.sub_chunkx_size, sizeof(wav_dummy.sub_chunkx_size)) < 0)
+        if(read(audio_info->handle.wav_fd, &wav_dummy.sub_chunkx_size, sizeof(wav_dummy.sub_chunkx_size)) < 0)
         {
             printr("fail to read [%s] : %s", audio_path, strerror(errno));
             return -1;
@@ -139,7 +139,7 @@ static int alsa_get_audio_info(char *audio_path, audio_info_t *audio_info)
             return 1;
         }
 
-        if(lseek(audio_info->fd, wav_dummy.sub_chunkx_size, SEEK_CUR) < 0)
+        if(lseek(audio_info->handle.wav_fd, wav_dummy.sub_chunkx_size, SEEK_CUR) < 0)
         {
             printr("fail to lseek [%s] : %s", audio_path, strerror(errno));
             return -1; 
@@ -150,25 +150,147 @@ static int alsa_get_audio_info(char *audio_path, audio_info_t *audio_info)
     return -1;
 }
 
+static snd_pcm_format_t alsa_get_mp3_audio_format(int encoding)
+{
+    switch (encoding)
+    {
+    case MPG123_ENC_UNSIGNED_8:
+        return SND_PCM_FORMAT_U8;
+
+    case MPG123_ENC_SIGNED_16:
+        return SND_PCM_FORMAT_S16_LE;
+
+    case MPG123_ENC_SIGNED_24:
+        return SND_PCM_FORMAT_S24_LE;
+
+    case MPG123_ENC_SIGNED_32:
+        return SND_PCM_FORMAT_S32_LE;
+    
+    default:
+        return SND_PCM_FORMAT_S16_LE;
+    }
+}
+
+static int alsa_get_mp3_audio_int(int encoding)
+{
+    switch (encoding)
+    {
+    case MPG123_ENC_UNSIGNED_8:
+        return 8;
+
+    case MPG123_ENC_SIGNED_16:
+        return 16;
+
+    case MPG123_ENC_SIGNED_24:
+        return 24;
+
+    case MPG123_ENC_SIGNED_32:
+        return 32;
+    
+    default:
+        return 16;
+    }
+}
+
+#define alsa_get_mp3_frame_size(encoding, channel) (alsa_get_mp3_audio_int(encoding)/8) * channel
+
+static int alsa_get_audio_mp3_info(alsa_ctl_t *alsa_ctl)
+{
+    int err = 0;
+    long rate = 0;
+    int channel = 0;
+    int encoding = 0;
+
+    if((alsa_ctl->audio_info.handle.mp3_handle = mpg123_new(NULL, &err)) == NULL)
+    {
+        printr("fail to allocate handle mp3 : %s", mpg123_plain_strerror(err));
+        return -1;
+    }
+
+    if (mpg123_open(alsa_ctl->audio_info.handle.mp3_handle, alsa_ctl->current_audio_path) != MPG123_OK) 
+    {
+        printr("fail to allocate open mp3 file[%s] : %s", alsa_ctl->current_audio_path, mpg123_strerror(alsa_ctl->audio_info.handle.mp3_handle));
+        mpg123_delete(alsa_ctl->audio_info.handle.mp3_handle);
+        alsa_ctl->audio_info.handle.mp3_handle = NULL;
+        return -1;
+    }
+
+    if(mpg123_getformat(alsa_ctl->audio_info.handle.mp3_handle, &rate, &channel, &encoding) != MPG123_OK)
+    {
+        fprintf(stderr, "fail to read mpg123 format[%s] : %s", alsa_ctl->current_audio_path, mpg123_strerror(alsa_ctl->audio_info.handle.mp3_handle));
+        mpg123_close(alsa_ctl->audio_info.handle.mp3_handle);
+        mpg123_delete(alsa_ctl->audio_info.handle.mp3_handle);
+        alsa_ctl->audio_info.handle.mp3_handle = NULL;
+        return -1;
+    }
+
+    alsa_ctl->audio_info.channel = channel;
+    alsa_ctl->audio_info.format = alsa_get_mp3_audio_format(encoding);
+    alsa_ctl->audio_info.sample_rate = rate;
+    alsa_ctl->audio_info.frame_size = alsa_get_mp3_frame_size(encoding, channel);
+    alsa_ctl->audio_info.data_size = mpg123_length(alsa_ctl->audio_info.handle.mp3_handle) * alsa_ctl->audio_info.frame_size;
+    return 1;
+}
+
+static int alas_set_type(alsa_ctl_t *alsa_ctl)
+{
+    if(strstr(alsa_ctl->current_audio_path, ".mp3") != NULL)
+    {
+        alsa_ctl->type = ALSA_AUDIO_MP3;
+        if(alsa_get_audio_mp3_info(alsa_ctl) < 0)
+        {
+            printr("alsa get audio mp3 info fail");
+            return -1;
+        }
+        return 1;
+    }
+    else if(strstr(alsa_ctl->current_audio_path, ".wav") != NULL)/* file is wav format */
+    {
+        alsa_ctl->type = ALSA_AUDIO_WAV;
+        if(alsa_get_audio_wav_info(alsa_ctl->current_audio_path, &alsa_ctl->audio_info) < 0)
+        {
+            printr("alsa get audio wav info fail");
+            return -1;
+        }
+        return 1;
+    }
+
+    printr("unkwon file path");
+    return -1;
+}
+
+static int alsa_close_file_handle(alsa_ctl_t *alsa_ctl)
+{
+    if(alsa_ctl->type == ALSA_AUDIO_MP3)
+    {
+        mpg123_close(alsa_ctl->audio_info.handle.mp3_handle);
+        mpg123_delete(alsa_ctl->audio_info.handle.mp3_handle);
+        alsa_ctl->audio_info.handle.mp3_handle = NULL;
+    }
+    return 1;
+}
+
 static int alsa_ctl_stop_all(alsa_ctl_t *alsa_ctl)
 {
     int ret = 0;
     if((ret = snd_pcm_drop(alsa_ctl->handle)) < 0)
     {
         printr("fail to drop : %s", snd_strerror(ret));
-        close(alsa_ctl->audio_info.fd);
+        alsa_close_file_handle(alsa_ctl);
+        close(alsa_ctl->audio_info.handle.wav_fd);
         return -1;
     }
     if((ret = snd_pcm_hw_free(alsa_ctl->handle)) < 0)
     {
         printr("fail to free hw : %s", snd_strerror(ret));
-        close(alsa_ctl->audio_info.fd);
+        alsa_close_file_handle(alsa_ctl);
+        close(alsa_ctl->audio_info.handle.wav_fd);
         return -1;
     }
-    close(alsa_ctl->audio_info.fd);
+    alsa_close_file_handle(alsa_ctl);
+    close(alsa_ctl->audio_info.handle.wav_fd);
     return 1;
 }
-
     
 int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
 {
@@ -204,9 +326,9 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
             }
         }
 
-        if(alsa_get_audio_info(alsa_ctl->current_audio_path, &alsa_ctl->audio_info) < 0)
+        if(alas_set_type(alsa_ctl) < 0)
         {
-            printr("alsa get audio info fail");
+            printr("fail to convert data");
             return -1;
         }
 
@@ -215,6 +337,7 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
             printr("alsa set hw params");
             return -1;
         }
+
         val = GPIO_HIGH;
         gpio_write_index(GPIO_CODEC_SW_MUTE, &val);
         alsa_ctl->current_status = ALSA_STATUS_PLAYING;
@@ -233,9 +356,10 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
         }
 
         strcpy(alsa_ctl->current_audio_path, alsa_set->play_audio_path);
-        if(alsa_get_audio_info(alsa_ctl->current_audio_path, &alsa_ctl->audio_info) < 0)
+        
+        if(alas_set_type(alsa_ctl) < 0)
         {
-            printr("alsa get audio info fail");
+            printr("fail to convert data");
             return -1;
         }
 
@@ -244,6 +368,7 @@ int alsa_control_set(alsa_ctl_t *alsa_ctl, alsa_set_t *alsa_set)
             printr("alsa set hw params");
             return -1;
         }
+
         val = GPIO_HIGH;
         gpio_write_index(GPIO_CODEC_SW_MUTE, &val);
         alsa_ctl->current_status = ALSA_STATUS_PLAYING;
@@ -366,6 +491,40 @@ static void alsa_volume_control(alsa_ctl_t *alsa_ctl, void *buf, int buf_size)
     }
 }
 
+static int alsa_get_write_frame(alsa_ctl_t *alsa_ctl, uint8_t *buf, size_t buf_size)
+{
+    int ret = 0;
+    size_t done = 0;
+
+    switch (alsa_ctl->type)
+    {
+    case ALSA_AUDIO_MP3:
+        ret = mpg123_read(alsa_ctl->audio_info.handle.mp3_handle, buf, buf_size, &done);
+        if(ret == MPG123_OK)
+        {
+            return done;
+        }
+        else if(ret == MPG123_DONE)
+        {
+            return 0;
+        }
+        break;
+    
+    case ALSA_AUDIO_WAV:
+        if((ret = read(alsa_ctl->audio_info.handle.wav_fd, buf, buf_size) < 0))
+        {
+            printr("fail to read : %s", strerror(errno));
+            return -1;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    return ret;
+}
+
 static int alsa_write_frame(alsa_ctl_t *alsa_ctl)
 {
     int ret = 0;
@@ -377,12 +536,11 @@ static int alsa_write_frame(alsa_ctl_t *alsa_ctl)
         return -1;
     }
 
-    if((ret = read(alsa_ctl->audio_info.fd, writei_buf, sizeof(writei_buf))) < 0)
+    if((ret = alsa_get_write_frame(alsa_ctl, writei_buf, sizeof(writei_buf))) < 0)
     {
-        printr("fail to read : %s", strerror(errno));
+        printr("fail to get write frame");
         return -1;
     }
-
     alsa_ctl->read_size += sizeof(writei_buf);
     alsa_volume_control(alsa_ctl, writei_buf, ret);
 

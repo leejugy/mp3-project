@@ -19,7 +19,7 @@ typedef enum
     FLAG_ON,
 }FLAG_INDEX;
 
-#define LINUX_COMMAND_LEN 1024
+#define LINUX_COMMAND_LEN 4096
 #define PATH_MAX_LEN 1024
 #define INPUT_MAX_LEN 1024
 

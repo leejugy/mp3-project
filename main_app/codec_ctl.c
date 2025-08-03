@@ -55,10 +55,17 @@ static void codec_test_print_test_list()
 static int codec_test_change_music(alsa_set_t *alsa_set)
 {
     char path[PATH_MAX_LEN] = {0, };
-    int ret = 0 ;
+    int ret = 0;
+    FILE *tty = NULL;
 
     printf("route : ");
-    (void)fgets(path, sizeof(path), stdin);
+    tty = fopen("/dev/tty", "r");
+    if (tty == NULL) {
+        printr("can't open /dev/tty");
+        return -1;
+    }
+    (void)fgets(path, sizeof(path), tty);
+    fclose(tty);
     strtok(path, "\n");
     if((ret = access(path, F_OK)) < 0)
     {
@@ -99,9 +106,16 @@ static int codec_test_volume_control(alsa_set_t *alsa_set)
 {
     char input[INPUT_MAX_LEN] = {0, };
     int volume = 0;
-
+    FILE *tty = NULL;
+    
     printf("volume(0 ~ 100) : ");
-    (void)fgets(input, sizeof(input), stdin);
+    tty = fopen("/dev/tty", "r");
+    if (tty == NULL) {
+        printr("can't open /dev/tty");
+        return -1;
+    }
+    (void)fgets(input, sizeof(input), tty);
+    fclose(tty);
     strtok(input, "\n");
 
     volume = atoi(input);
@@ -119,9 +133,23 @@ static int codec_test_get_command(alsa_set_t *alsa_set)
 {
     char cmd[LINUX_COMMAND_LEN] = {0, };
     int ret = 0;
-
-    (void)fgets(cmd, sizeof(cmd), stdin);
+    FILE *tty = 0;
+    
+    tty = fopen("/dev/tty", "r");
+    if (tty == NULL) {
+        printr("can't open /dev/tty");
+        return -1;
+    }
+    (void)fgets(cmd, sizeof(cmd), tty);
+    fclose(tty);
     strtok(cmd, "\n");
+
+    if (!isatty(fileno(stdin))) 
+    {
+        /* if stdin is not a terminal printing this massage. stdin returning garbage data... */
+        printr("stdin is not a TTY!");
+    }
+
     if(strlen(cmd) != 1)
     {
         printr("unkwon string : %s", cmd);
@@ -174,6 +202,7 @@ static void thread_codec_test()
         {
             que_push_index(QUE_ALSA_SET, &alsa_set, sizeof(alsa_set));
         }
+        usleep(1000 * 100);
     }
 }
 #endif
