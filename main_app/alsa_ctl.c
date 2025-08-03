@@ -546,12 +546,24 @@ static int alsa_write_frame(alsa_ctl_t *alsa_ctl)
         return -1;
     }
 
-    if((ret = alsa_get_write_frame(alsa_ctl, writei_buf, sizeof(writei_buf))) < 0)
+    ret = alsa_get_write_frame(alsa_ctl, writei_buf, sizeof(writei_buf));
+    if(ret < 0)
     {
         printr("fail to get write frame");
         return -1;
     }
-    alsa_ctl->read_size += sizeof(writei_buf);
+    else if(ret == 0)
+    {
+        printb("end playing. terminate audio read : %ld, data : %ld", alsa_ctl->read_size, alsa_ctl->audio_info.data_size);
+        return 1;
+    }
+    alsa_ctl->read_size += ret;
+    if(alsa_ctl->read_size >= alsa_ctl->audio_info.data_size)
+    {
+        printb("end playing. terminate audio read : %ld, data : %ld", alsa_ctl->read_size, alsa_ctl->audio_info.data_size);
+        alsa_ctl->read_size = 0;
+        return 1;
+    }
     alsa_volume_control(alsa_ctl, writei_buf, ret);
 
     if((ret = snd_pcm_writei(alsa_ctl->handle, writei_buf, ALSA_GET_WRITEI_SIZE(alsa_ctl->audio_info.frame_size))) < 0)
@@ -568,12 +580,6 @@ static int alsa_write_frame(alsa_ctl_t *alsa_ctl)
             return 0;
         }
         return -1;
-    }
-
-    if(alsa_ctl->read_size > alsa_ctl->audio_info.data_size)
-    {
-        alsa_ctl->read_size = 0;
-        return 1;
     }
     return 0;
 }
@@ -594,7 +600,7 @@ int alsa_control(alsa_ctl_t *alsa_ctl)
             printr("fail to write frame");
             return -1;
         }
-        else if (ret == 1)
+        else if(ret == 1)
         {
             alsa_ctl->current_status = ALSA_STATUS_END;
         }
@@ -604,8 +610,8 @@ int alsa_control(alsa_ctl_t *alsa_ctl)
         break;
 
     case ALSA_STATUS_END:
-        /* wait 500ms to finish codec playing */
-        if(alsa_ctl->end_count++ >= 500)
+        /* wait 2s to finish codec playing */
+        if(alsa_ctl->end_count++ >= 2000)
         {
             if(alsa_ctl_stop_all(alsa_ctl) < 0)
             {
