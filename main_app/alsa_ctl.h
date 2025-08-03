@@ -33,6 +33,7 @@ typedef enum
 
 typedef enum
 {
+    ALSA_AUDIO_NONE,
     ALSA_AUDIO_MP3,
     ALSA_AUDIO_WAV,
 }ALSA_AUDIO_FILE_TYPE;

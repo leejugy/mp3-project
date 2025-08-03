@@ -261,11 +261,23 @@ static int alas_set_type(alsa_ctl_t *alsa_ctl)
 
 static int alsa_close_file_handle(alsa_ctl_t *alsa_ctl)
 {
-    if(alsa_ctl->type == ALSA_AUDIO_MP3)
+    switch(alsa_ctl->type)
     {
-        mpg123_close(alsa_ctl->audio_info.handle.mp3_handle);
-        mpg123_delete(alsa_ctl->audio_info.handle.mp3_handle);
-        alsa_ctl->audio_info.handle.mp3_handle = NULL;
+        case ALSA_AUDIO_MP3:
+            mpg123_close(alsa_ctl->audio_info.handle.mp3_handle);
+            mpg123_delete(alsa_ctl->audio_info.handle.mp3_handle);
+            alsa_ctl->audio_info.handle.mp3_handle = NULL;
+            alsa_ctl->type = ALSA_AUDIO_NONE;
+            break;
+
+        case ALSA_AUDIO_WAV:
+            close(alsa_ctl->audio_info.handle.wav_fd);
+            alsa_ctl->type = ALSA_AUDIO_NONE;
+            break;
+
+        case ALSA_AUDIO_NONE:
+            printr("alsa control audio type is none");
+            break;
     }
     return 1;
 }
@@ -277,18 +289,16 @@ static int alsa_ctl_stop_all(alsa_ctl_t *alsa_ctl)
     {
         printr("fail to drop : %s", snd_strerror(ret));
         alsa_close_file_handle(alsa_ctl);
-        close(alsa_ctl->audio_info.handle.wav_fd);
+        
         return -1;
     }
     if((ret = snd_pcm_hw_free(alsa_ctl->handle)) < 0)
     {
         printr("fail to free hw : %s", snd_strerror(ret));
         alsa_close_file_handle(alsa_ctl);
-        close(alsa_ctl->audio_info.handle.wav_fd);
         return -1;
     }
     alsa_close_file_handle(alsa_ctl);
-    close(alsa_ctl->audio_info.handle.wav_fd);
     return 1;
 }
     
