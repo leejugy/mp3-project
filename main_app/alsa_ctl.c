@@ -521,7 +521,7 @@ static int alsa_get_write_frame(alsa_ctl_t *alsa_ctl, uint8_t *buf, size_t buf_s
         break;
     
     case ALSA_AUDIO_WAV:
-        if((ret = read(alsa_ctl->audio_info.handle.wav_fd, buf, buf_size) < 0))
+        if((ret = read(alsa_ctl->audio_info.handle.wav_fd, buf, buf_size)) < 0)
         {
             printr("fail to read : %s", strerror(errno));
             return -1;
