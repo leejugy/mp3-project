@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "flutter-elinux: Attach",
+            "type": "dart",
+            "request": "attach",
+            "cwd": "${workspaceFolder}",
+            "vmServiceUri": "http://127.0.0.1:51674/"
+        }
+    ]
+}
